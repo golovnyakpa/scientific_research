@@ -163,7 +163,7 @@ static int mgm_crypt(unsigned char *out, unsigned char *k, unsigned char *n,
 		memset(tmp, 0, 16);
 		Encryption(KeyLen, Y_i, tmp);
 		xor_block(out, in, tmp);
-		incr_r(Y_i);
+		incr_r(&Y_i);
     }
     ib = inbytes % 16;
     if (ib > 0)
@@ -183,7 +183,7 @@ static int mgm_crypt(unsigned char *out, unsigned char *k, unsigned char *n,
 		Encryption(KeyLen, Z_i, H_i);
 		gf_mult(H_i, a, res);
 		xor_block(sum, res, sum);
-		incr_l(Z_i);
+		incr_l(&Z_i);
 	}
 	ab = abytes % 16;
 	if (ab > 0)
@@ -192,7 +192,7 @@ static int mgm_crypt(unsigned char *out, unsigned char *k, unsigned char *n,
 		memcpy(tmp, a, ab);
 		Encryption(KeyLen, Z_i, H_i);
 		xor_block(out, Y_i, tmp);
-		incr_l(Z_i);
+		incr_l(&Z_i);
 	}
 	for(i = 1; i <= inbytes/16; i++, out_first = out_first + 16)
 	{
@@ -200,7 +200,7 @@ static int mgm_crypt(unsigned char *out, unsigned char *k, unsigned char *n,
 		Encryption(KeyLen, Z_i, H_i);
 		gf_mult(H_i, out_first, res);
 		xor_block(sum, res, sum);
-		incr_l(Z_i);
+		incr_l(&Z_i);
 	}
 	Encryption(KeyLen, Z_i, H_i);
 	//xor_block(sum, sum, H_i);
@@ -219,11 +219,20 @@ static int mgm_crypt(unsigned char *out, unsigned char *k, unsigned char *n,
 void mgm_encrypt(unsigned char *c, unsigned char *k, unsigned char *n,
                  unsigned char *a, unsigned abytes,
                  unsigned char *p, unsigned pbytes) {
+	unsigned char *st_c = c; 
+	unsigned char *st_k = k;
+	unsigned char *st_n = n;
+    unsigned char *st_a = a; 
+    unsigned char *st_p = p;
     mgm_crypt(c, k, n, a, abytes, p, pbytes, OCB_ENCRYPT);
+    c = st_c;
+    k = st_k;
+    n = st_n;
+    a = st_a;
+    p = st_p;
 }
 
 /* ------------------------------------------------------------------------- */
-
 
 int crypto_aead_encrypt(
 unsigned char *c,unsigned long long *clen,
@@ -235,8 +244,10 @@ const unsigned char *k
 )
 {
     *clen = mlen + TAGBYTES;
+    
     mgm_crypt(c, (unsigned char *)k, (unsigned char *)npub, (unsigned char *)ad,
               adlen, (unsigned char *)m, mlen, OCB_ENCRYPT);
+
     return 0;
 }
 
@@ -330,35 +341,38 @@ int main()
     unsigned char *ad;
     ad = (unsigned char*) malloc(0 * sizeof(char)); //8
     unsigned char *m;
-    m = (unsigned char*) malloc(2048 * sizeof(char)); //16
-    unsigned long long mlen = 2048;
-    for (i = 0; i < 2048; ++i)
+    m = (unsigned char*) malloc(512 * sizeof(char)); //16
+    unsigned long long mlen = 512;
+    for (i = 0; i < 512; ++i)
     {
         m[i] = p[i % 77];
     }
     const unsigned char nsec = '0';
     unsigned char *c;
-    c = (unsigned char*) malloc(2048 * sizeof(char)); //24
+    c = (unsigned char*) malloc(512 * sizeof(char)); //24
     unsigned long long clen;
     unsigned long long adlen = 0;
     const unsigned char *npub = (unsigned char *)np;
     unsigned char *k;
-    k = (unsigned char*) malloc(2048 * sizeof(char));
+    k = (unsigned char*) malloc(16 * sizeof(char));
     for (i = 0; i < 16; ++i)
         k[i] = val[i % 16];
     //printf("%s\n", npub);
     //kuz_set_encrypt_key(k);
     //kuz_encrypt_block(p, &tmp);
     double *time_measurments = (double*) malloc(1001 * sizeof(double));
+    //crypto_aead_encrypt(c, &clen, m, mlen, ad, adlen, &nsec, npub, k);
+    printf("I work!!!!!\n");
     for (i=0; i<1001; i++)
     {
 		start = clock();
 		crypto_aead_encrypt(c, &clen, m, mlen, ad, adlen, &nsec, npub, k);
+		// ПРОБЛЕМА В ТОМ, ЧТО УКАЗАТЕЛИ В ФУНКЦИИ СДВИГАЮТСЯ 
 		end = clock();
 		time_measurments[i] = diffclock(end, start);
     }
     quickSort(time_measurments, 0, 1000);
-    printf("%f ", time_measurments[50]);
+    printf("%f ", time_measurments[500]);
     /*crypto_aead_encrypt(c, &clen, m, mlen, ad, adlen, &nsec, npub, k);
     for (i = 0; i < 32; ++i)
         printf("%X ", c[i]);*/
